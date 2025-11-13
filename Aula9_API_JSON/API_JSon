@@ -1,0 +1,140 @@
+# --- 1. IMPORTAÇÕES (As "Caixas de Ferramentas") ---
+# Importamos a biblioteca 'requests'.
+# Pense nela como o "navegador" do nosso Python.
+# A sua única função é fazer pedidos a URLs (links) na internet
+# e trazer a resposta (seja um site HTML, uma imagem ou dados JSON).
+import requests
+# Importamos a biblioteca 'pandas' e damos-lhe o apelido 'pd'.
+# Esta é a nossa ferramenta principal de Análise de Dados.
+# A sua função é pegar em dados "crus" (como dicionários ou listas)
+# e transformá-los numa tabela organizada (DataFrame) onde podemos filtrar,
+# agrupar e analisar.
+import pandas as pd
+# Importamos o submódulo 'pyplot' da biblioteca 'matplotlib'.
+# Damos-lhe o apelido 'plt'.
+# Esta é a nossa biblioteca de visualização, usada para "desenhar"
+# os gráficos com base nos nossos dados do pandas.
+import matplotlib.pyplot as plt
+# --- 2. ETAPA DE EXTRAÇÃO (E: Extract) ---
+# O objetivo aqui é buscar os dados na fonte (a API na internet).
+print("Passo 1: A chamar a API...")
+# Definimos o "endpoint" (o URL exato) onde os dados se encontram.
+# Estamos a usar a API 'open.er-api.com'.
+# O 'v6/latest/USD' significa que queremos a "versão 6",
+# os dados "mais recentes" (latest), tendo o 'USD' (Dólar Americano)
+# como moeda base.
+url_da_api = "https://open.er-api.com/v6/latest/USD"
+# Usamos um bloco 'try...except' por segurança.
+# Pedidos de rede (internet) podem falhar por inúmeros motivos
+# (o PC está offline, o site da API está em baixo, o URL está errado).
+# O 'try' tenta executar o código arriscado.
+try:
+# Esta é a linha principal da extração!
+# 'requests.get()' envia um pedido HTTP GET para o URL.
+# O Python "espera" (pausa o script) até o servidor da API responder.
+# A resposta completa (código de status, dados, etc.) é guardada
+# no objeto 'resposta'.
+    resposta = requests.get(url_da_api)
+# Esta linha é uma verificação de segurança vital.
+# .raise_for_status() verifica o "código de status" da resposta.
+# Se for 200 (OK), o código continua.
+# Se for um erro (como 404 - Não Encontrado, ou 500 - Erro do Servidor),
+# ele irá falhar e "saltar" para o bloco 'except'.
+    resposta.raise_for_status()
+    print("Sucesso! A API respondeu com o código 200 (OK).")
+# O bloco 'except' só é executado se o 'try' falhar.
+except requests.exceptions.RequestException as e:
+# 'e' é uma variável que contém a mensagem de erro.
+
+    print(f"Erro ao chamar a API: {e}")
+# Se não conseguirmos os dados, não vale a pena continuar o script.
+    exit()
+ # --- 3. ETAPA DE TRANSFORMAÇÃO (T: Transform) - Parte 1: JSON ---
+print("\nPasso 2: A processar a resposta JSON...")
+# A 'resposta' da API (o 'resposta.text') é um longo pedaço de texto
+# formatado em JSON.
+# Ex: '{"result": "success", "rates": {"USD": 1, "BRL": 5.4, ...}}'
+#
+# O método '.json()' (do objeto 'requests') faz a "magia":
+# Ele "lê" este texto JSON e converte-o automaticamente para
+# uma estrutura de dados nativa do Python: um Dicionário.
+dados_em_dicionario = resposta.json()
+# 'dados_em_dicionario' é agora um Dicionário.
+# Vamos "navegar" por ele. Se olharmos o JSON (colando o URL no navegador),
+# vemos que as taxas de câmbio estão dentro de uma "chave" chamada 'rates'.
+# Estamos a aceder a essa chave, como faríamos em qualquer dicionário Python.
+taxas_de_cambio = dados_em_dicionario['rates']
+# 'taxas_de_cambio' é agora um dicionário mais pequeno, apenas com as moedas:
+# {'USD': 1, 'EUR': 0.934, 'GBP': 0.812, 'BRL': 5.448, ...}
+# print(taxas_de_cambio) # Descomente para ver   
+# --- 4. ETAPA DE CARREGAMENTO (L: Load) - Parte 2: Pandas ---
+print("\nPasso 3: A transformar o Dicionário em DataFrame...")
+# Esta é a ponte entre os dados "crus" e a análise.
+# Como transformamos o dicionário {'BRL': 5.44, 'EUR': 0.93} numa tabela?
+#
+# 1. pd.Series(taxas_de_cambio):
+# O Pandas é inteligente. Ele transforma um dicionário num objeto 'Series'.
+# O 'Series' fica assim:
+# Índice | Valor
+# -------|-------
+# 'USD' | 1
+# 'EUR' | 0.934
+# 'BRL' | 5.448
+#
+# 2. .reset_index():
+# Isto "promove" o índice (as moedas) a uma coluna normal.
+# O Pandas cria um novo índice numérico (0, 1, 2...)
+# e o nosso 'Series' torna-se um 'DataFrame' (tabela):
+# Índice | 'index' | 0
+# -------|---------|-------
+# 0 | 'USD' | 1
+# 1 | 'EUR' | 0.934
+# 2 | 'BRL' | 5.448
+df_taxas = pd.Series(taxas_de_cambio).reset_index()
+# Os nomes das colunas ('index', 0) não são muito bons.
+# Vamos renomeá-los para algo legível.
+df_taxas.columns = ['Moeda', 'Taxa_em_relacao_ao_USD']
+print("Dados carregados e transformados em DataFrame:")
+
+print(df_taxas.head())
+print("\n" + "="*40 + "\n")
+# --- 5. ETAPA DE ANÁLISE E VISUALIZAÇÃO (O que já sabemos) ---
+print("Passo 4: A analisar e visualizar os dados...")
+# O nosso DataFrame tem 160+ moedas. Queremos focar-nos nalgumas.
+# Criamos uma lista Python normal com as moedas que nos interessam.
+moedas_de_interesse = ['BRL', 'EUR', 'GBP', 'JPY', 'CAD', 'ARS']
+# Esta é a filtragem (Aula 4).
+# 1. df_taxas['Moeda'].isin(moedas_de_interesse)
+# Isto cria uma "máscara" (uma Série de True/False):
+# True se a moeda estiver na lista, False se não estiver.
+# 2. df_taxas[ ... ]
+# Ao passar a máscara para o DataFrame, ele só retorna
+# as linhas onde o valor era 'True'.
+df_filtrado = df_taxas[ df_taxas['Moeda'].isin(moedas_de_interesse) ]
+print("Taxas de Câmbio de Interesse (1 USD vale...):")
+print(df_filtrado)
+# Para o gráfico de barras (Aula 7), queremos que o eixo X
+# tenha os nomes das moedas ('BRL', 'EUR', ...).
+# A forma mais fácil de dizer isso ao Pandas/Matplotlib é
+# definir a coluna 'Moeda' como o *índice* do DataFrame.
+df_grafico = df_filtrado.set_index('Moeda')
+# Agora, o 'df_grafico' está pronto para plotar:
+# | Taxa_em_relacao_ao_USD
+# Moeda |
+#-------|------------------------
+# 'BRL' | 5.448
+# 'EUR' | 0.934
+# ... | ...
+# Chamamos o método .plot() no nosso DataFrame final.
+df_grafico['Taxa_em_relacao_ao_USD'].plot(
+kind='bar', # Queremos um gráfico de barras
+title='Valor de 1 Dólar (USD) em Outras Moedas', # Título
+rot=0 # Rotação 0 = deixar os rótulos (BRL, EUR) na horizontal
+)
+# Adicionamos legendas e grelhas para tornar o gráfico mais claro
+plt.ylabel("Valor (Taxa de Câmbio)") # Legenda Eixo Y
+plt.xlabel("Moeda") # Legenda Eixo X
+plt.grid(axis='y', linestyle='--', alpha=0.7) # Grelha horizontal
+plt.tight_layout() # Ajusta o gráfico para caber tudo sem cortar
+plt.show() # Exibe a janela do gráfico
+print("\nProjeto de API concluído!")
